@@ -2,20 +2,27 @@
 
 const Service = require('egg').Service;
 
+const CHAIN = [];
+let TRANSACTIONS = [];
+const NODES = new Set();
+
 class BlockchainService extends Service {
   constructor(ctx) {
     super(ctx);
-    this._chain = [];
-    this._transactions = [];
-    this._nodes = new Set();
+    this._chain = CHAIN;
+    this._transactions = TRANSACTIONS;
+    this._nodes = NODES;
 
-    this.newBlock(100, 1); // 创世区块
+    // this.newBlock(100, 1); // 创世区块
+    if (CHAIN.length === 0) {
+      this.newBlock(100, 1);
+    }
   }
   get curTransactions() {
     return this._transactions;
   }
   clearTransactions() {
-    this._transactions = [];
+    this._transactions = TRANSACTIONS = [];
   }
   get schema() {
     return {
@@ -61,7 +68,7 @@ class BlockchainService extends Service {
     const block = this.schema;
     block.index = this.len + 1;
     block.proof = proof;
-    block.transactions = this.curTransactions;
+    block.transactions = [].concat(this.curTransactions);
     block.previousHash = previousHash || this.hash(lastBlock);
 
     this.clearTransactions();
@@ -86,7 +93,7 @@ class BlockchainService extends Service {
     const guessHash = this.hash(guess);
     const isProof = guessHash.slice(0, 4) === '0000';
     if (isProof) {
-      this.ctx.logger.debug(`guess: ${guess}, hash: ${guessHash}`);
+      this.ctx.logger.info(`guess: ${guess}, hash: ${guessHash}`);
     }
     return isProof;
   }
@@ -98,7 +105,7 @@ class BlockchainService extends Service {
       if (block.previousHash !== this.hash(lastBlock)) {
         return false;
       }
-      if (this.validProof(lastBlock.proof, block.proof)) {
+      if (!this.validProof(lastBlock.proof, block.proof)) {
         return false;
       }
       lastBlock = block;
@@ -117,7 +124,7 @@ class BlockchainService extends Service {
     let chains = await Promise.all(jobs);
 
     chains = chains.filter(data => data.length && data.chain);
-    this.ctx.logger.debug('neighbours chains:', chains);
+    this.ctx.logger.info('neighbours chains:', chains);
 
     let maxLength = this.len;
     let newChain;
